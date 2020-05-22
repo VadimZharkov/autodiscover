@@ -1,15 +1,13 @@
 import org.apache.commons.codec.binary.Base64;
-import org.apache.hc.client5.http.auth.AuthScope;
-import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.ProtocolException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 
@@ -24,22 +22,18 @@ public class Main {
         System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.http", "DEBUG");
         System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.http.wire", "ERROR");
 
-        String emailAddress = "";
+        String emailAddress = "vzharkov@systematica-consulting.ru";
         String password = "";
-        String domain = "";
+        String domain = "systematica-consulting.ru";
 
         autodiscover(domain, emailAddress, password);
     }
 
     private static void autodiscover(String domain, String username, String password)
-            throws IOException, ParseException, URISyntaxException {
-        BasicCredentialsProvider credsProvider = new BasicCredentialsProvider();
-        credsProvider.setCredentials(
-                new AuthScope(null, -1),
-                new UsernamePasswordCredentials(username, password.toCharArray()));
-
-        try (CloseableHttpClient httpClient = HttpClients.custom()
-                .setDefaultCredentialsProvider(credsProvider).build()) {
+            throws IOException, ProtocolException, URISyntaxException {
+         try (CloseableHttpClient httpClient = HttpClients.custom()
+                .disableRedirectHandling()
+                .build()) {
             autodiscover(httpClient, "https://" + domain + "/autodiscover/autodiscover.xml", username, password);
             autodiscover(httpClient, "https://autodiscover." + domain + "/autodiscover/autodiscover.xml", username, password);
             redirect(httpClient, "http://autodiscover." + domain + "/autodiscover/autodiscover.xml", username, password);
@@ -59,12 +53,17 @@ public class Main {
     }
 
     private static void redirect(CloseableHttpClient httpClient, String url, String username, String password)
-            throws URISyntaxException {
+            throws URISyntaxException, ProtocolException {
         HttpGet request = makeGetRequest(url, username, password);
         printGetRequest(request);
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             String responseString = EntityUtils.toString(response.getEntity(), "UTF-8");
             printResponse(response, responseString);
+            if (response.getCode() == 302) {
+                String location = response.getFirstHeader("Location").getValue();
+                System.out.println("Location: " + location);
+                autodiscover(httpClient, location, username, password);
+            }
         } catch (IOException | ParseException e) {
             System.out.println("Error sending request");
         }
@@ -73,7 +72,7 @@ public class Main {
     private static HttpPost makePostRequest(String url, String username, String password) {
         HttpPost request = new HttpPost(url);
         request.setHeader(HttpHeaders.CONTENT_TYPE, "text/xml; charset=utf-8");
-        //request.setHeader(HttpHeaders.AUTHORIZATION, makeAuthHeader(username, password));
+        request.setHeader(HttpHeaders.AUTHORIZATION, makeAuthHeader(username, password));
 
         String requestBody = createAutodiscoverXml(username);
         request.setEntity(new StringEntity(requestBody));
@@ -83,7 +82,6 @@ public class Main {
 
     private static HttpGet makeGetRequest(String url, String username, String password) {
         HttpGet request = new HttpGet(url);
-        //request.setHeader(HttpHeaders.AUTHORIZATION, makeAuthHeader(username, password));
         return request;
     }
 
