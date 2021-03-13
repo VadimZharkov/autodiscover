@@ -22,9 +22,9 @@ public class Main {
         System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.http", "DEBUG");
         System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.http.wire", "ERROR");
 
-        String emailAddress = "vzharkov@systematica-consulting.ru";
+        String emailAddress = "";
         String password = "";
-        String domain = "systematica-consulting.ru";
+        String domain = "";
 
         autodiscover(domain, emailAddress, password);
     }
